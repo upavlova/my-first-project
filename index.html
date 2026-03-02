@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HabitFlow — Трекер привычек</title>
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d14;
+      --bg2:       #12121e;
+      --bg3:       #1a1a2e;
+      --surface:   rgba(255,255,255,.05);
+      --border:    rgba(255,255,255,.08);
+      --accent:    #7c3aed;
+      --accent2:   #a855f7;
+      --accent3:   #06b6d4;
+      --text:      #f1f0fb;
+      --muted:     #8b8aa6;
+      --radius:    16px;
+      --transition: .4s cubic-bezier(.25,.8,.25,1);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+    /* ─── Utility ───────────────────────────────────────────────── */
+    .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+    .gradient-text {
+      background: linear-gradient(135deg, var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ─── Animated entrance ─────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-left  { opacity:0; transform: translateX(-50px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal-right { opacity:0; transform: translateX( 50px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal-left.visible, .reveal-right.visible { opacity:1; transform: translateX(0); }
+
+    .delay-1 { transition-delay: .1s; }
+    .delay-2 { transition-delay: .2s; }
+    .delay-3 { transition-delay: .3s; }
+    .delay-4 { transition-delay: .4s; }
+    .delay-5 { transition-delay: .5s; }
+
+    /* ─── Background orbs ──────────────────────────────────────── */
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── NAV ──────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 18px 0;
+      transition: background var(--transition), backdrop-filter var(--transition);
+    }
+    nav.scrolled {
+      background: rgba(13,13,20,.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      font-size: 1.4rem; font-weight: 700; letter-spacing: -.5px;
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--text);
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: .95rem;
+      transition: color var(--transition);
+    }
+    .nav-links a:hover { color: var(--text); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 24px; border-radius: 50px; font-weight: 600;
+      font-size: .9rem; cursor: pointer; border: none; text-decoration: none;
+      transition: all var(--transition);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(124,58,237,.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(124,58,237,.6);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover {
+      background: var(--surface);
+      border-color: var(--accent2);
+      transform: translateY(-2px);
+    }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { width: 24px; height: 2px; background: var(--text); border-radius: 2px; transition: all .3s; }
+
+    /* ─── HERO ──────────────────────────────────────────────────── */
+    #hero {
+      position: relative; overflow: hidden;
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 120px 0 80px;
+    }
+    #hero .orb:nth-child(1) { width:500px; height:500px; background:rgba(124,58,237,.25); top:-100px; left:-150px; }
+    #hero .orb:nth-child(2) { width:400px; height:400px; background:rgba(6,182,212,.2);  bottom:-50px; right:-100px; }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+      position: relative; z-index: 1;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(124,58,237,.15);
+      border: 1px solid rgba(124,58,237,.3);
+      border-radius: 50px;
+      padding: 6px 16px;
+      font-size: .82rem; color: var(--accent2);
+      margin-bottom: 24px;
+    }
+    .hero-badge span { width:6px; height:6px; background:var(--accent2); border-radius:50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    h1 { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; line-height: 1.15; margin-bottom: 24px; }
+    .hero-desc { font-size: 1.1rem; color: var(--muted); max-width: 480px; margin-bottom: 40px; }
+    .hero-cta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 56px; }
+    .hero-stats { display: flex; gap: 40px; }
+    .stat-num { font-size: 1.8rem; font-weight: 800; }
+    .stat-label { font-size: .82rem; color: var(--muted); }
+
+    /* phone mockup */
+    .phone-wrap {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .phone {
+      width: 280px;
+      background: linear-gradient(160deg, #1e1e32, #0f0f1e);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 44px;
+      padding: 18px;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05) inset;
+      animation: float 4s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
+    .phone-notch {
+      width: 100px; height: 26px;
+      background: #0d0d14;
+      border-radius: 0 0 18px 18px;
+      margin: 0 auto 18px;
+    }
+    .phone-screen {
+      background: var(--bg3);
+      border-radius: 28px;
+      padding: 20px;
+      min-height: 460px;
+      overflow: hidden;
+    }
+    .ps-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .ps-date { font-size:.72rem; color:var(--muted); }
+    .ps-title { font-size:1rem; font-weight:700; }
+    .ps-streak {
+      font-size:.72rem; background:rgba(124,58,237,.2);
+      border-radius:20px; padding:3px 10px; color:var(--accent2);
+    }
+    .habit-item {
+      display:flex; align-items:center; gap:12px;
+      background:var(--surface);
+      border-radius:14px; padding:12px 14px;
+      margin-bottom:10px;
+      border: 1px solid var(--border);
+      animation: slideIn .5s ease forwards;
+      opacity:0;
+    }
+    @keyframes slideIn { to { opacity:1; transform:translateX(0); } from { opacity:0; transform:translateX(-20px); } }
+    .habit-item:nth-child(1) { animation-delay:.2s; }
+    .habit-item:nth-child(2) { animation-delay:.4s; }
+    .habit-item:nth-child(3) { animation-delay:.6s; }
+    .habit-item:nth-child(4) { animation-delay:.8s; }
+    .habit-dot {
+      width:32px; height:32px; border-radius:50%; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:.9rem;
+    }
+    .habit-info { flex:1; }
+    .habit-name { font-size:.85rem; font-weight:600; }
+    .habit-time { font-size:.7rem; color:var(--muted); }
+    .habit-check {
+      width:22px; height:22px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; font-size:.7rem;
+    }
+    .done { background:rgba(34,197,94,.2); color:#22c55e; }
+    .skip { background: var(--surface); color:var(--muted); border:1px solid var(--border); }
+    .ps-ring-wrap { margin-top:16px; display:flex; justify-content:center; }
+    .ring-svg { transform: rotate(-90deg); }
+    .ring-text { font-size:.85rem; font-weight:700; fill:var(--text); text-anchor:middle; dominant-baseline:central; }
+    .ring-sub  { font-size:.55rem; fill:var(--muted); text-anchor:middle; dominant-baseline:central; }
+
+    /* glow decoration around phone */
+    .phone-glow {
+      position:absolute; inset:-40px;
+      background: radial-gradient(ellipse at center, rgba(124,58,237,.2) 0%, transparent 70%);
+      border-radius:50%; pointer-events:none;
+    }
+
+    /* ─── FEATURES ────────────────────────────────────────────── */
+    #features { padding: 120px 0; position:relative; overflow:hidden; }
+    #features .orb { width:350px; height:350px; background:rgba(6,182,212,.15); top:50%; right:-100px; transform:translateY(-50%); }
+
+    .section-label {
+      font-size:.8rem; font-weight:600; letter-spacing:2px;
+      text-transform:uppercase; color:var(--accent2);
+      margin-bottom:12px;
+    }
+    h2 { font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight:800; line-height:1.2; margin-bottom:16px; }
+    .section-desc { color:var(--muted); font-size:1rem; max-width:520px; }
+
+    .features-grid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:24px;
+      margin-top:64px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      transition: all var(--transition);
+      position: relative; overflow:hidden;
+    }
+    .feature-card::before {
+      content:''; position:absolute; inset:0;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      opacity:0; transition: opacity var(--transition);
+      border-radius: var(--radius);
+    }
+    .feature-card:hover { transform:translateY(-6px); border-color: rgba(168,85,247,.3); }
+    .feature-card:hover::before { opacity:.06; }
+    .feature-icon {
+      width:52px; height:52px; border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.4rem; margin-bottom:20px;
+      position:relative; z-index:1;
+    }
+    .feature-card h3 { font-size:1.1rem; font-weight:700; margin-bottom:10px; position:relative;z-index:1; }
+    .feature-card p  { font-size:.9rem; color:var(--muted); position:relative;z-index:1; }
+
+    /* ─── HOW IT WORKS ─────────────────────────────────────────── */
+    #how { padding:120px 0; background: var(--bg2); }
+    .steps-grid { display:grid; grid-template-columns:1fr 1fr; gap:80px; align-items:center; margin-top:64px; }
+    .steps-list { display:flex; flex-direction:column; gap:36px; }
+    .step { display:flex; gap:20px; }
+    .step-num {
+      flex-shrink:0;
+      width:48px; height:48px; border-radius:50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:1.1rem;
+      box-shadow: 0 4px 20px rgba(124,58,237,.4);
+    }
+    .step-content h3 { font-size:1.1rem; font-weight:700; margin-bottom:6px; }
+    .step-content p  { color:var(--muted); font-size:.9rem; }
+
+    /* progress visual */
+    .progress-visual {
+      background: linear-gradient(160deg, #1a1a2e, #0f0f1e);
+      border:1px solid var(--border);
+      border-radius:24px; padding:32px;
+    }
+    .pv-title { font-size:1rem; font-weight:700; margin-bottom:24px; }
+    .week-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:28px; }
+    .day-label { font-size:.65rem; color:var(--muted); text-align:center; margin-bottom:4px; }
+    .day-dot {
+      width:100%; aspect-ratio:1;
+      border-radius:8px;
+      transition: background var(--transition);
+    }
+    .day-dot.full  { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .day-dot.half  { background: rgba(124,58,237,.4); }
+    .day-dot.empty { background: var(--surface); border:1px solid var(--border); }
+
+    .progress-bars { display:flex; flex-direction:column; gap:14px; }
+    .pb-row { display:flex; align-items:center; gap:12px; }
+    .pb-emoji { font-size:1.1rem; width:28px; }
+    .pb-label { font-size:.82rem; flex:1; }
+    .pb-bar-wrap { width:140px; height:8px; background:var(--surface); border-radius:4px; overflow:hidden; }
+    .pb-bar { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+    .pb-pct { font-size:.78rem; color:var(--muted); width:36px; text-align:right; }
+
+    /* ─── STATS ─────────────────────────────────────────────────── */
+    #stats { padding:100px 0; }
+    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:32px; }
+    .stat-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:36px 24px; text-align:center;
+      transition: all var(--transition);
+    }
+    .stat-card:hover { transform:translateY(-4px); border-color:rgba(168,85,247,.3); }
+    .stat-big { font-size:2.8rem; font-weight:800; }
+    .stat-card p { color:var(--muted); font-size:.88rem; margin-top:6px; }
+
+    /* ─── TESTIMONIALS ──────────────────────────────────────────── */
+    #testimonials { padding:120px 0; background:var(--bg2); }
+    .t-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:64px; }
+    .t-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:28px;
+      transition: all var(--transition);
+    }
+    .t-card:hover { transform:translateY(-4px); border-color:rgba(168,85,247,.3); }
+    .stars { color:#fbbf24; font-size:1rem; margin-bottom:16px; letter-spacing:2px; }
+    .t-text { font-size:.93rem; color:var(--muted); margin-bottom:20px; line-height:1.7; }
+    .t-author { display:flex; align-items:center; gap:12px; }
+    .t-avatar {
+      width:40px; height:40px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.2rem; font-weight:700;
+    }
+    .t-name  { font-size:.9rem; font-weight:600; }
+    .t-role  { font-size:.78rem; color:var(--muted); }
+
+    /* ─── DOWNLOAD CTA ──────────────────────────────────────────── */
+    #download {
+      padding:120px 0; position:relative; overflow:hidden;
+      text-align:center;
+    }
+    #download .orb:nth-child(1) { width:600px;height:600px; background:rgba(124,58,237,.2); top:50%;left:50%; transform:translate(-50%,-50%); }
+    .cta-wrap { position:relative; z-index:1; }
+    #download h2 { font-size:clamp(2rem,4vw,3.2rem); margin-bottom:20px; }
+    #download p { color:var(--muted); font-size:1.05rem; max-width:500px; margin:0 auto 48px; }
+    .store-btns { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+    .store-btn {
+      display:inline-flex; align-items:center; gap:12px;
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:14px; padding:14px 24px;
+      text-decoration:none; color:var(--text);
+      transition: all var(--transition);
+      min-width:180px;
+    }
+    .store-btn:hover { border-color:rgba(168,85,247,.5); background:rgba(124,58,237,.1); transform:translateY(-3px); }
+    .store-icon { font-size:1.8rem; }
+    .store-sub  { font-size:.68rem; color:var(--muted); }
+    .store-name { font-size:1rem; font-weight:700; }
+
+    /* ─── FOOTER ─────────────────────────────────────────────────── */
+    footer {
+      padding:48px 0; border-top:1px solid var(--border);
+      background:var(--bg2);
+    }
+    .footer-inner { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:24px; }
+    .footer-links { display:flex; gap:28px; }
+    .footer-links a { color:var(--muted); text-decoration:none; font-size:.88rem; transition:color var(--transition); }
+    .footer-links a:hover { color:var(--text); }
+    .footer-copy { color:var(--muted); font-size:.85rem; }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────────── */
+    @media (max-width:900px) {
+      .hero-grid { grid-template-columns:1fr; text-align:center; gap:60px; }
+      .hero-desc, .hero-cta { margin-left:auto; margin-right:auto; }
+      .hero-cta { justify-content:center; }
+      .hero-stats { justify-content:center; }
+      .phone-wrap { order:-1; }
+      .features-grid { grid-template-columns:1fr 1fr; }
+      .steps-grid { grid-template-columns:1fr; gap:48px; }
+      .stats-grid { grid-template-columns:repeat(2,1fr); }
+      .t-grid { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:600px) {
+      .nav-links { display:none; }
+      .nav-links.open {
+        display:flex; flex-direction:column;
+        position:fixed; inset:0; background:var(--bg);
+        align-items:center; justify-content:center; gap:40px;
+        z-index:99;
+      }
+      .nav-links.open a { font-size:1.4rem; }
+      .hamburger { display:flex; position:relative; z-index:100; }
+      .features-grid { grid-template-columns:1fr; }
+      .stats-grid { grid-template-columns:1fr 1fr; }
+      .t-grid { grid-template-columns:1fr; }
+      .footer-inner { flex-direction:column; align-items:flex-start; }
+      .hero-stats { gap:24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ───────────────────────────────────────────────────────── -->
+<nav id="navbar">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon">✦</div>
+        HabitFlow
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="#features">Функции</a>
+        <a href="#how">Как работает</a>
+        <a href="#testimonials">Отзывы</a>
+        <a href="#download" class="btn btn-primary">Скачать</a>
+      </div>
+      <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ───────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="orb"></div>
+  <div class="orb"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge reveal delay-1">
+          <span></span> Версия 2.0 — уже доступна
+        </div>
+        <h1 class="reveal delay-2">
+          Превращай действия<br>в <span class="gradient-text">привычки навсегда</span>
+        </h1>
+        <p class="hero-desc reveal delay-3">
+          HabitFlow помогает формировать полезные привычки через умные напоминания,
+          наглядную аналитику и систему поощрений, которая действительно работает.
+        </p>
+        <div class="hero-cta reveal delay-4">
+          <a href="#download" class="btn btn-primary">
+            ⚡ Начать бесплатно
+          </a>
+          <a href="#how" class="btn btn-outline">Как это работает →</a>
+        </div>
+        <div class="hero-stats reveal delay-5">
+          <div>
+            <div class="stat-num gradient-text">500K+</div>
+            <div class="stat-label">пользователей</div>
+          </div>
+          <div>
+            <div class="stat-num gradient-text">4.9★</div>
+            <div class="stat-label">рейтинг</div>
+          </div>
+          <div>
+            <div class="stat-num gradient-text">83%</div>
+            <div class="stat-label">успех через 30 дней</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phone mockup -->
+      <div class="phone-wrap reveal">
+        <div class="phone-glow"></div>
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="ps-header">
+              <div>
+                <div class="ps-date">Вт, 3 марта</div>
+                <div class="ps-title">Сегодня</div>
+              </div>
+              <div class="ps-streak">🔥 21 день</div>
+            </div>
+
+            <div class="habit-item">
+              <div class="habit-dot" style="background:rgba(124,58,237,.2)">🏃</div>
+              <div class="habit-info">
+                <div class="habit-name">Пробежка</div>
+                <div class="habit-time">07:00 утра</div>
+              </div>
+              <div class="habit-check done">✓</div>
+            </div>
+            <div class="habit-item">
+              <div class="habit-dot" style="background:rgba(6,182,212,.2)">📚</div>
+              <div class="habit-info">
+                <div class="habit-name">Чтение</div>
+                <div class="habit-time">30 мин</div>
+              </div>
+              <div class="habit-check done">✓</div>
+            </div>
+            <div class="habit-item">
+              <div class="habit-dot" style="background:rgba(34,197,94,.2)">💧</div>
+              <div class="habit-info">
+                <div class="habit-name">Вода 2L</div>
+                <div class="habit-time">Весь день</div>
+              </div>
+              <div class="habit-check done">✓</div>
+            </div>
+            <div class="habit-item">
+              <div class="habit-dot" style="background:rgba(251,191,36,.2)">🧘</div>
+              <div class="habit-info">
+                <div class="habit-name">Медитация</div>
+                <div class="habit-time">21:00 вечера</div>
+              </div>
+              <div class="habit-check skip">○</div>
+            </div>
+
+            <div class="ps-ring-wrap">
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="10"/>
+                <circle cx="50" cy="50" r="40" fill="none"
+                  stroke="url(#ringGrad)" stroke-width="10"
+                  stroke-dasharray="188" stroke-dashoffset="47"
+                  stroke-linecap="round" class="ring-svg"/>
+                <defs>
+                  <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#7c3aed"/>
+                    <stop offset="100%" stop-color="#06b6d4"/>
+                  </linearGradient>
+                </defs>
+                <text x="50" y="46" class="ring-text">75%</text>
+                <text x="50" y="58" class="ring-sub">выполнено</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ───────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="orb"></div>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Возможности</div>
+      <h2>Всё для <span class="gradient-text">стойких привычек</span></h2>
+      <p class="section-desc">Инструменты, которые помогут вам не бросить и сделать прогресс видимым каждый день.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal delay-1">
+        <div class="feature-icon" style="background:rgba(124,58,237,.15)">🎯</div>
+        <h3>Умные цели</h3>
+        <p>Ставьте цели по методу SMART. Система разбивает большую цель на ежедневные микродействия.</p>
+      </div>
+      <div class="feature-card reveal delay-2">
+        <div class="feature-icon" style="background:rgba(6,182,212,.15)">📊</div>
+        <h3>Глубокая аналитика</h3>
+        <p>Интерактивные графики, тепловые карты и трендовые отчёты — видьте прогресс во всех деталях.</p>
+      </div>
+      <div class="feature-card reveal delay-3">
+        <div class="feature-icon" style="background:rgba(34,197,94,.15)">🔔</div>
+        <h3>Умные напоминания</h3>
+        <p>ИИ подбирает лучшее время для напоминания, основываясь на вашем расписании и привычках.</p>
+      </div>
+      <div class="feature-card reveal delay-1">
+        <div class="feature-icon" style="background:rgba(251,191,36,.15)">🔥</div>
+        <h3>Серии и стрики</h3>
+        <p>Не прерывайте серию! Визуальные стрики и система наград мотивируют продолжать каждый день.</p>
+      </div>
+      <div class="feature-card reveal delay-2">
+        <div class="feature-icon" style="background:rgba(236,72,153,.15)">👥</div>
+        <h3>Соревнования</h3>
+        <p>Создавайте команды с друзьями, участвуйте в совместных челленджах и поддерживайте друг друга.</p>
+      </div>
+      <div class="feature-card reveal delay-3">
+        <div class="feature-icon" style="background:rgba(99,102,241,.15)">🌙</div>
+        <h3>Вечерний ревью</h3>
+        <p>Короткий рефлексионный ритуал каждый вечер — ключ к осознанному развитию привычек.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ───────────────────────────────────────────────── -->
+<section id="how">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Как это работает</div>
+      <h2>Три шага до <span class="gradient-text">новой жизни</span></h2>
+    </div>
+
+    <div class="steps-grid">
+      <div class="steps-list">
+        <div class="step reveal delay-1">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Выберите привычки</h3>
+            <p>Из библиотеки 200+ шаблонов или создайте собственные. Установите частоту, время и сложность.</p>
+          </div>
+        </div>
+        <div class="step reveal delay-2">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Отмечайте выполнение</h3>
+            <p>Одно нажатие — и задача выполнена. Получайте мгновенный фидбек и начисляйте очки опыта.</p>
+          </div>
+        </div>
+        <div class="step reveal delay-3">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Анализируйте и растите</h3>
+            <p>Еженедельные отчёты покажут паттерны вашего поведения и подскажут, что улучшить.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-visual reveal">
+        <div class="pv-title">📅 Активность за неделю</div>
+        <div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:6px;">
+            <div class="day-label">Пн</div>
+            <div class="day-label">Вт</div>
+            <div class="day-label">Ср</div>
+            <div class="day-label">Чт</div>
+            <div class="day-label">Пт</div>
+            <div class="day-label">Сб</div>
+            <div class="day-label">Вс</div>
+          </div>
+          <div class="week-grid">
+            <div class="day-dot full"></div>
+            <div class="day-dot full"></div>
+            <div class="day-dot half"></div>
+            <div class="day-dot full"></div>
+            <div class="day-dot full"></div>
+            <div class="day-dot half"></div>
+            <div class="day-dot empty"></div>
+          </div>
+        </div>
+        <div class="progress-bars">
+          <div class="pb-row">
+            <div class="pb-emoji">🏃</div>
+            <div class="pb-label">Пробежка</div>
+            <div class="pb-bar-wrap"><div class="pb-bar" style="width:90%"></div></div>
+            <div class="pb-pct">90%</div>
+          </div>
+          <div class="pb-row">
+            <div class="pb-emoji">📚</div>
+            <div class="pb-label">Чтение</div>
+            <div class="pb-bar-wrap"><div class="pb-bar" style="width:75%"></div></div>
+            <div class="pb-pct">75%</div>
+          </div>
+          <div class="pb-row">
+            <div class="pb-emoji">💧</div>
+            <div class="pb-label">Вода</div>
+            <div class="pb-bar-wrap"><div class="pb-bar" style="width:85%"></div></div>
+            <div class="pb-pct">85%</div>
+          </div>
+          <div class="pb-row">
+            <div class="pb-emoji">🧘</div>
+            <div class="pb-label">Медитация</div>
+            <div class="pb-bar-wrap"><div class="pb-bar" style="width:60%"></div></div>
+            <div class="pb-pct">60%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STATS ──────────────────────────────────────────────────────── -->
+<section id="stats">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-card reveal delay-1">
+        <div class="stat-big gradient-text" data-target="500000">0</div>
+        <p>активных пользователей</p>
+      </div>
+      <div class="stat-card reveal delay-2">
+        <div class="stat-big gradient-text" data-target="12000000">0</div>
+        <p>привычек сформировано</p>
+      </div>
+      <div class="stat-card reveal delay-3">
+        <div class="stat-big gradient-text" data-target="83" data-suffix="%">0</div>
+        <p>сохранили привычку 30+ дней</p>
+      </div>
+      <div class="stat-card reveal delay-4">
+        <div class="stat-big gradient-text" data-target="49" data-prefix="4." data-suffix="★">0</div>
+        <p>средний рейтинг в App Store</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TESTIMONIALS ───────────────────────────────────────────────── -->
+<section id="testimonials">
+  <div class="container">
+    <div class="reveal" style="text-align:center">
+      <div class="section-label">Отзывы</div>
+      <h2>Они уже <span class="gradient-text">изменили жизнь</span></h2>
+    </div>
+
+    <div class="t-grid">
+      <div class="t-card reveal delay-1">
+        <div class="stars">★★★★★</div>
+        <p class="t-text">«За 3 месяца я наконец-то закрепил привычку бегать каждое утро. Раньше бросал через неделю. Система стриков буквально не даёт мне остановиться!»</p>
+        <div class="t-author">
+          <div class="t-avatar" style="background:rgba(124,58,237,.2)">А</div>
+          <div>
+            <div class="t-name">Алексей Морозов</div>
+            <div class="t-role">Программист, Москва</div>
+          </div>
+        </div>
+      </div>
+      <div class="t-card reveal delay-2">
+        <div class="stars">★★★★★</div>
+        <p class="t-text">«Аналитика — это просто бомба. Вижу не только что делаю, но и когда у меня спады. Оптимизирую своё расписание на основе данных.»</p>
+        <div class="t-author">
+          <div class="t-avatar" style="background:rgba(6,182,212,.2)">М</div>
+          <div>
+            <div class="t-name">Мария Ковалёва</div>
+            <div class="t-role">Маркетолог, Санкт-Петербург</div>
+          </div>
+        </div>
+      </div>
+      <div class="t-card reveal delay-3">
+        <div class="stars">★★★★★</div>
+        <p class="t-text">«Использую для команды — соревнуемся, кто больше привычек выполнит за месяц. Это сплотило нас и подняло продуктивность на уровне всего отдела.»</p>
+        <div class="t-author">
+          <div class="t-avatar" style="background:rgba(34,197,94,.2)">Д</div>
+          <div>
+            <div class="t-name">Дмитрий Новиков</div>
+            <div class="t-role">Менеджер команды, Казань</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── DOWNLOAD CTA ───────────────────────────────────────────────── -->
+<section id="download">
+  <div class="orb"></div>
+  <div class="container">
+    <div class="cta-wrap">
+      <div class="reveal">
+        <div class="section-label" style="text-align:center">Начните сегодня</div>
+        <h2>Первый шаг к <span class="gradient-text">лучшей версии себя</span></h2>
+        <p>Бесплатно навсегда. Без кредитной карты. Начните за 30 секунд.</p>
+      </div>
+      <div class="store-btns reveal delay-2">
+        <a href="#" class="store-btn">
+          <div class="store-icon"></div>
+          <div>
+            <div class="store-sub">Скачать в</div>
+            <div class="store-name">App Store</div>
+          </div>
+        </a>
+        <a href="#" class="store-btn">
+          <div class="store-icon">▶</div>
+          <div>
+            <div class="store-sub">Доступно в</div>
+            <div class="store-name">Google Play</div>
+          </div>
+        </a>
+        <a href="#" class="store-btn">
+          <div class="store-icon">🌐</div>
+          <div>
+            <div class="store-sub">Открыть в</div>
+            <div class="store-name">браузере</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon" style="width:28px;height:28px;font-size:.9rem">✦</div>
+        HabitFlow
+      </a>
+      <div class="footer-links">
+        <a href="#">Политика</a>
+        <a href="#">Условия</a>
+        <a href="#">Поддержка</a>
+        <a href="#">Блог</a>
+      </div>
+      <div class="footer-copy">© 2026 HabitFlow. Сделано с ♥</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ── NAV scroll effect ────────────────────────────────────────────
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // ── Mobile menu ──────────────────────────────────────────────────
+  function toggleMenu() {
+    const links = document.getElementById('navLinks');
+    const ham = document.getElementById('hamburger');
+    links.classList.toggle('open');
+    ham.classList.toggle('open');
+    const spans = ham.querySelectorAll('span');
+    if (ham.classList.contains('open')) {
+      spans[0].style.cssText = 'transform:rotate(45deg) translate(5px,5px)';
+      spans[1].style.opacity = '0';
+      spans[2].style.cssText = 'transform:rotate(-45deg) translate(5px,-5px)';
+    } else {
+      spans.forEach(s => s.removeAttribute('style'));
+    }
+  }
+  // close on link click
+  document.querySelectorAll('#navLinks a').forEach(a => {
+    a.addEventListener('click', () => {
+      document.getElementById('navLinks').classList.remove('open');
+      document.getElementById('hamburger').classList.remove('open');
+      document.querySelectorAll('#hamburger span').forEach(s => s.removeAttribute('style'));
+    });
+  });
+
+  // ── Scroll reveal ────────────────────────────────────────────────
+  const revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  revealEls.forEach(el => observer.observe(el));
+
+  // ── Counter animation ─────────────────────────────────────────────
+  function formatNum(val, prefix, suffix) {
+    let s;
+    if (val >= 1_000_000)      s = (val / 1_000_000).toFixed(1) + 'M';
+    else if (val >= 1_000)     s = (val / 1_000).toFixed(0) + 'K';
+    else                       s = val.toString();
+    return (prefix || '') + s + (suffix || '');
+  }
+
+  const counters = document.querySelectorAll('[data-target]');
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const target = +el.dataset.target;
+      const prefix = el.dataset.prefix || '';
+      const suffix = el.dataset.suffix || '';
+      let start = 0;
+      const duration = 1800;
+      const step = timestamp => {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = formatNum(Math.floor(eased * target), prefix, suffix);
+        if (progress < 1) requestAnimationFrame(step);
+        else el.textContent = formatNum(target, prefix, suffix);
+      };
+      requestAnimationFrame(step);
+      counterObserver.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  counters.forEach(el => counterObserver.observe(el));
+
+  // ── Parallax orbs ─────────────────────────────────────────────────
+  document.addEventListener('mousemove', e => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 20;
+    const y = (e.clientY / window.innerHeight - 0.5) * 20;
+    document.querySelectorAll('.orb').forEach((orb, i) => {
+      const factor = (i % 2 === 0) ? 1 : -1;
+      orb.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
+    });
+  });
+</script>
+</body>
+</html>
